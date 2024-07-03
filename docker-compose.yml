@@ -1,0 +1,28 @@
+version: '3'
+
+services:
+  frontend:    
+    build:
+      context: ./RandomChatFrontend      
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+    depends_on:
+      - backend
+      - redis
+    
+  backend:
+    build:
+      context: ./RandomChat
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    net
+   
+    
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
