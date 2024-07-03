@@ -13,7 +13,9 @@ const App = () => {
     setWs(ws);
 
     return () => {
-      ws.close();
+      if (ws) {
+        ws.close();
+      }
     };
   }, []);
 
@@ -22,10 +24,19 @@ const App = () => {
     setIsLoggedIn(true);
   };
 
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setUsername("");
+  };
+
   return (
     <div>
-      {!isLoggedIn && <LoginPopup open={!isLoggedIn} onLogin={handleLogin} ws={ws} />}
-      {isLoggedIn && <ChatScene username={username} ws={ws} />}
+      {!isLoggedIn && (
+        <LoginPopup onLogin={handleLogin} ws={ws} open={!isLoggedIn} />
+      )}
+      {isLoggedIn && (
+        <ChatScene username={username} ws={ws} onLogout={handleLogout} />
+      )}
     </div>
   );
 };

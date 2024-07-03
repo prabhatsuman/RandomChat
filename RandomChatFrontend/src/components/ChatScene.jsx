@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { FiChevronDown } from "react-icons/fi";
+import { FiChevronDown, FiX, FiSmile } from "react-icons/fi";
+import { FaUserCircle } from "react-icons/fa";
+import EmojiPicker from 'emoji-picker-react';
+import { EmojiObjects } from "@mui/icons-material";
 
-const ChatScene = ({ username, ws }) => {
+const ChatScene = ({ username, ws, onLogout }) => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [usersInRoom, setUsersInRoom] = useState([username]);
   const [matchedUser, setMatchedUser] = useState(null);
-  const [isSearching, setIsSearching] = useState(false); // Updated initial state to false
+  const [isSearching, setIsSearching] = useState(false);
+  const [notification, setNotification] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   useEffect(() => {
     if (ws) {
@@ -19,6 +24,7 @@ const ChatScene = ({ username, ws }) => {
           setMatchedUser(data.matched_user);
           setUsersInRoom([username, data.matched_user]);
           setIsSearching(false);
+          setNotification(`Matched with ${data.matched_user}`);
         } else if (data.type === "message") {
           const newMessage = {
             user: data.username,
@@ -29,10 +35,18 @@ const ChatScene = ({ username, ws }) => {
         } else if (data.type === "disconnect") {
           setMatchedUser(null);
           setUsersInRoom([username]);
-          setIsSearching(true);
-          ws.send(JSON.stringify({ type: "search" }));
+          setIsSearching(false);
+          setMessages([]);  
+          setNotification("User disconnected, searching for a new match...");
         } else if (data.type === "search") {
           setIsSearching(true);
+          setNotification("Searching for users...");
+        } else if (data.type === "skip") {
+          setMatchedUser(null);
+          setUsersInRoom([username]);
+          setIsSearching(false);
+          setNotification(data.message);
+          setMessages([]);
         }
       };
 
@@ -57,11 +71,12 @@ const ChatScene = ({ username, ws }) => {
   };
 
   const handleSkip = () => {
-    if (ws && matchedUser) { 4
-      ws.send(JSON.stringify({ type: "skip", username: username }));
+    if (ws && matchedUser) {
+      ws.send(JSON.stringify({ type: "skip", username: matchedUser }));
       setMatchedUser(null);
       setUsersInRoom([username]);
-      setIsSearching(true);
+      setIsSearching(false);
+      setMessages([]);
     }
   };
 
@@ -73,8 +88,20 @@ const ChatScene = ({ username, ws }) => {
     if (ws && !matchedUser) {
       ws.send(JSON.stringify({ type: "search" }));
       setIsSearching(true);
+      setNotification("Searching for users...");
     }
   };
+
+  const handleCloseNotification = () => {
+    setNotification("");
+  };
+
+  const handleLocalLogout = () => {
+    console.log("Local logout clicked");
+    onLogout(); // Trigger parent component logout handler
+  };
+
+
 
   return (
     <div className="flex flex-col h-screen w-screen">
@@ -96,7 +123,7 @@ const ChatScene = ({ username, ws }) => {
                 <div className="py-1">
                   <button
                     className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-200 w-full text-left"
-                    onClick={() => console.log("Logout clicked")}
+                    onClick={handleLocalLogout}
                   >
                     Logout
                   </button>
@@ -110,13 +137,22 @@ const ChatScene = ({ username, ws }) => {
       {/* Main Content */}
       <div className="flex-1 flex">
         <div className="w-3/4 flex flex-col">
+          {/* Notification */}
+          {notification && (
+            <div className="bg-yellow-200 text-yellow-800 p-2 text-center relative">
+              {notification}
+              <button
+                className="absolute right-2 top-1/2 transform -translate-y-1/2"
+                onClick={handleCloseNotification}
+              >
+                <FiX className="h-5 w-5 text-yellow-800" />
+              </button>
+            </div>
+          )}
+
           {/* Chat Window */}
           <div className="bg-white overflow-auto flex-1 p-1">
-            {isSearching ? (
-              <div className="text-center text-gray-500 mt-4">
-                Searching for users...
-              </div>
-            ) : (
+            {!isSearching &&
               messages.map((msg, index) => (
                 <div
                   key={index}
@@ -125,7 +161,7 @@ const ChatScene = ({ username, ws }) => {
                   }`}
                 >
                   <div
-                    className={`max-w-3/5 py-2 px-3 rounded-lg ${
+                    className={`py-2 px-3 rounded-lg ${
                       msg.user === username ? "bg-green-200" : "bg-red-200"
                     }`}
                   >
@@ -140,12 +176,11 @@ const ChatScene = ({ username, ws }) => {
                     </p>
                   </div>
                 </div>
-              ))
-            )}
+              ))}
           </div>
 
           {/* Message Input and Send Button */}
-          <div className="flex items-center p-4 bg-gray-200">
+          <div className="flex items-center p-4 bg-gray-200 relative">
             {matchedUser ? (
               <button
                 className="px-4 py-2 rounded-md bg-blue-500 text-white mr-2"
@@ -161,6 +196,17 @@ const ChatScene = ({ username, ws }) => {
               >
                 Find New User
               </button>
+            )}
+            <button
+              className="px-4 py-2 rounded-md bg-blue-500 text-white mr-2"
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            >
+              <FiSmile />
+            </button>
+            {showEmojiPicker && (
+              <div className="absolute bottom-12">
+                <EmojiPicker onEmojiClick={(emojiObject)=> setMessage((prevMsg)=>prevMsg+emojiObject.emoji)} />
+              </div>
             )}
             <input
               type="text"
@@ -184,9 +230,10 @@ const ChatScene = ({ username, ws }) => {
         <div className="w-1/4 bg-gray-300 p-4 overflow-auto">
           <h2 className="text-lg font-semibold mb-4">Users in Room</h2>
           {usersInRoom.map((user, index) => (
-            <p key={index} className="text-sm mb-2">
-              {user}
-            </p>
+            <div key={index} className="flex items-center mb-2">
+              <FaUserCircle className="text-3xl text-gray-700 mr-2" />
+              <p className="text-sm">{user}</p>
+            </div>
           ))}
         </div>
       </div>

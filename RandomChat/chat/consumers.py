@@ -3,14 +3,12 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 import redis
 
 redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
-COOLDOWN_PERIOD = 5  # Cooldown period in seconds
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.user = None
         self.matched_user = None
-        self.matched_user_channel = None
-        self.is_searching = False  # Flag to manage search state
+        self.matched_user_channel = None       
         await self.accept()
 
     async def disconnect(self, close_code):
@@ -34,12 +32,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
         data = json.loads(text_data)
         if data['type'] == 'register':
             await self.register_user(data['username'])
-        elif data['type'] == 'search' and not self.is_searching:
+        elif data['type'] == 'search':
             await self.search_user()
         elif data['type'] == 'message':
             await self.send_message(data['message'])
-        elif data['type'] == 'skip':
-            await self.skip_chat(data['username'])  # Pass username to skip_chat
+        elif data['type'] == 'skip':            
+            await self.skip_chat()
 
     async def register_user(self, username):
         if redis_client.sismember('active_users', username):
@@ -54,14 +52,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'username': username
         }))
 
-    async def search_user(self):
-        self.is_searching = True
+    async def search_user(self):       
         redis_client.set(f'searching:{self.user}', self.channel_name)
         searching_users = redis_client.keys('searching:*')
         if len(searching_users) > 1:
             for user_key in searching_users:
                 user = user_key.decode('utf-8').split(':')[1]
                 if user != self.user:
+                    print(f"{self.user} matched with {user} ")
                     matched_user_channel = redis_client.get(
                         user_key).decode('utf-8')
 
@@ -95,14 +93,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
                                 'matched_user': self.user
                             }
                         )
-                        self.is_searching = False  # Reset searching flag
                         break
         else:
             await self.send(text_data=json.dumps({
                 'message': 'Searching for a chat partner...'
             }))
-            self.is_searching = False  # Reset searching flag
-
+           
     async def send_message(self, message):
         if self.matched_user_channel:
             await self.channel_layer.group_send(
@@ -114,7 +110,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 }
             )
 
-    async def skip_chat(self, skip_username):
+    async def skip_chat(self):
         if self.matched_user_channel:
             await self.channel_layer.group_send(
                 self.matched_user_channel,
@@ -127,21 +123,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 self.matched_user_channel,
                 self.channel_name
             )
+            await self.channel_layer.send(
+                self.matched_user_channel,
+                {
+                    'type': 'skip',
+                    'message': f'{self.user} has skipped the chat.'
+                }
+            )
 
-            # Reset matched user information
             self.matched_user_channel = None
             self.matched_user = None
-
-            # Delete searching keys for both users
-            redis_client.delete(f'searching:{self.user}')
-            if self.matched_user:
-                redis_client.delete(f'searching:{self.matched_user}')
-
-            # Notify the frontend about the skip
-            await self.send(text_data=json.dumps({
-                'type': 'skip',
-                'username': skip_username
-            }))
 
     async def chat_message(self, event):
         message = event['message']
