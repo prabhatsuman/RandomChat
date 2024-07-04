@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-*gfhyxk218+(2hr@-$_r1@0h&fo%m4@25@)vf6*!c5kdu(-gd#
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -35,8 +35,7 @@ INSTALLED_APPS = [
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
-    'django.contrib.messages',
-    'daphne',
+    'django.contrib.messages',   
     'django.contrib.staticfiles',
     'chat',
     'channels',
@@ -75,11 +74,15 @@ TEMPLATES = [
 
 ASGI_APPLICATION = "RandomChat.asgi.application"
 
+import os
+
+REDIS_HOST = os.getenv('REDIS_HOST', 'redis')
+
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("localhost", 6379)],
+            "hosts": [(REDIS_HOST, 6379)],
         },
     },
 }

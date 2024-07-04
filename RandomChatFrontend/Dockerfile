@@ -1,9 +1,9 @@
-FROM node:14-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
 COPY  package*.json ./
-RUN npm install
+RUN npm i
 
 COPY . .
 
@@ -11,6 +11,6 @@ RUN npm run build
 
 EXPOSE 3000
 
-RUN npm install -g serve
+RUN npm i -g serve
 
-CMD ["serve", "-s", "build"]
+CMD ["serve", "-s", "dist"]
