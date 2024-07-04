@@ -9,7 +9,7 @@ const App = () => {
   const [ws, setWs] = useState(null);
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8000/ws/chat/"); // Adjust URL as per your WebSocket server setup
+    const ws = new WebSocket("ws://3.26.199.160:8000/ws/chat/"); // Adjust URL as per your WebSocket server setup
     setWs(ws);
 
     return () => {
