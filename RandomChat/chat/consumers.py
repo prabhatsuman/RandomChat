@@ -35,7 +35,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         elif data['type'] == 'search':
             await self.search_user()
         elif data['type'] == 'message':
-            await self.send_message(data['message'])
+            await self.send_message(data['message'], data.get('image'))
         elif data['type'] == 'skip':            
             await self.skip_chat()
 
@@ -99,13 +99,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'message': 'Searching for a chat partner...'
             }))
            
-    async def send_message(self, message):
+    async def send_message(self, message, image=None):
         if self.matched_user_channel:
             await self.channel_layer.group_send(
                 self.matched_user_channel,
                 {
                     'type': 'chat_message',
                     'message': message,
+                    'image': image if image else None,
                     'username': self.user
                 }
             )
@@ -136,10 +137,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def chat_message(self, event):
         message = event['message']
+        image = event.get('image')
         username = event['username']
         await self.send(text_data=json.dumps({
             'type': 'message',
             'message': message,
+            'image': image,
             'username': username
         }))
 
