@@ -31,7 +31,6 @@ services:
     networks:
       - RandomChatNetwork
    
-    
   redis:
     image: redis:alpine
     ports:
@@ -50,6 +49,7 @@ services:
       - frontend
     networks:
       - RandomChatNetwork
+    command: ["nginx", "-g", "daemon off;"]
     
 networks:
   RandomChatNetwork:

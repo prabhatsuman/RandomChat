@@ -11,16 +11,21 @@ const App = () => {
   useEffect(() => {
     // Initialize WebSocket connection
     const initializeWebSocket = () => {
-      const ws = new WebSocket("ws://localhost:8000/ws/chat/"); // Adjust URL as per your WebSocket server setup
+      const { hostname, port } = window.location;
+      const wsUrl = `ws://${hostname}:${port}/ws/chat/`; // Adjust the URL path as needed
+      const ws = new WebSocket(wsUrl);
       setWs(ws);
 
       ws.onclose = () => {
         console.log("WebSocket closed unexpectedly, reopening...");
         setWs(null); // Clear the WebSocket instance
+        if (!isLoggedIn) {
+          initializeWebSocket();
+        }
       };
     };
 
-    if (!isLoggedIn) {
+    if (!ws) {
       initializeWebSocket();
     }
 
