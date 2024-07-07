@@ -19,13 +19,11 @@ const App = () => {
       ws.onclose = () => {
         console.log("WebSocket closed unexpectedly, reopening...");
         setWs(null); // Clear the WebSocket instance
-        if (!isLoggedIn) {
-          initializeWebSocket();
-        }
+        
       };
     };
 
-    if (!ws) {
+    if (!isLoggedIn) {
       initializeWebSocket();
     }
 
