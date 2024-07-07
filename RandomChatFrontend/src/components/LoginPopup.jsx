@@ -20,6 +20,14 @@ const LoginPopup = ({ open, onLogin, ws }) => {
   }, [ws, onLogin, username]);
 
   const handleLogin = () => {
+    // Regular expression to validate username (allowing only alphanumeric characters and underscores)
+    const usernameRegex = /^[a-zA-Z0-9_]+$/;
+  
+    if (!usernameRegex.test(username)) {
+      setError("Username should only contain letters, numbers, and underscores.");
+      return;
+    }
+  
     if (username && ws && ws.readyState === WebSocket.OPEN) {
       ws.send(
         JSON.stringify({
@@ -27,10 +35,8 @@ const LoginPopup = ({ open, onLogin, ws }) => {
           username: username,
         })
       );
-      
     }
   };
-
   return (
     <div className={`fixed inset-0 ${open ? "block" : "hidden"}`}>
       <div className="flex items-center justify-center h-screen bg-gray-300 bg-opacity-75">

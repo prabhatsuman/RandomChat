@@ -9,15 +9,27 @@ const App = () => {
   const [ws, setWs] = useState(null);
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8000/ws/chat/"); // Adjust URL as per your WebSocket server setup
-    setWs(ws);
+    // Initialize WebSocket connection
+    const initializeWebSocket = () => {
+      const ws = new WebSocket("ws://localhost:8000/ws/chat/"); // Adjust URL as per your WebSocket server setup
+      setWs(ws);
+
+      ws.onclose = () => {
+        console.log("WebSocket closed unexpectedly, reopening...");
+        setWs(null); // Clear the WebSocket instance
+      };
+    };
+
+    if (!isLoggedIn) {
+      initializeWebSocket();
+    }
 
     return () => {
       if (ws) {
         ws.close();
       }
     };
-  }, []);
+  }, [isLoggedIn]);
 
   const handleLogin = (username) => {
     setUsername(username);
