@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { FiChevronDown, FiX, FiSmile, FiMenu } from "react-icons/fi";
 import { FaUserCircle, FaImage } from "react-icons/fa";
@@ -15,6 +15,9 @@ const ChatScene = ({ username, ws, onLogout }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showUsersInRoom, setShowUsersInRoom] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+
+
+  const lastMessageRef = useRef(null);
 
   useEffect(() => {
     if (ws) {
@@ -39,7 +42,7 @@ const ChatScene = ({ username, ws, onLogout }) => {
           setUsersInRoom([username]);
           setIsSearching(false);
           setMessages([]);
-          setNotification("User disconnected, searching for a new match...");
+          setNotification("User disconnected, search for a new match...");
         } else if (data.type === "search") {
           setIsSearching(true);
           setNotification("Searching for users...");
@@ -65,15 +68,17 @@ const ChatScene = ({ username, ws, onLogout }) => {
     };
   }, [ws, username]);
 
+ 
   useEffect(() => {
-    if (notification) {
-      const timer = setTimeout(() => {
-        setNotification("");
-      }, 5000); // 5 seconds
-
-      return () => clearTimeout(timer);
+    if (selectedFile) {
+      handleSendMessage();
     }
-  }, [notification]);
+  }, [selectedFile]);
+  useEffect(() => {
+    if (lastMessageRef.current) {
+      lastMessageRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
 
   const handleSendMessage = () => {
     if ((message.trim() || selectedFile) && ws && matchedUser) {
@@ -102,6 +107,7 @@ const ChatScene = ({ username, ws, onLogout }) => {
       };
 
       if (selectedFile) {
+        console.log("Sending image...");
         resizeImage(selectedFile, (base64Image) => {
           const data = {
             type: "message",
@@ -170,7 +176,6 @@ const ChatScene = ({ username, ws, onLogout }) => {
     const file = e.target.files[0];
     if (file) {
       setSelectedFile(file);
-      handleSendMessage();
     }
   };
 
@@ -214,7 +219,7 @@ const ChatScene = ({ username, ws, onLogout }) => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex relative">
+      <div className="flex-1 flex relative overflow-hidden">
         <div className="w-full md:w-4/5 flex flex-col">
           {/* Notification */}
           {notification && (
@@ -230,64 +235,72 @@ const ChatScene = ({ username, ws, onLogout }) => {
           )}
 
           {/* Chat Window */}
-          <div className="bg-white overflow-y-hidden flex-1 p-1">
-            {!isSearching &&
-              messages.map((msg, index) => (
-                <div
-                  key={index}
-                  className={`flex mb-2 ${
-                    msg.user === username ? "justify-end" : "justify-start"
-                  }`}
-                >
+          <div
+            
+            className="bg-white overflow-y-auto no-scrollbar flex-1 p-1 flex flex-col-reverse"
+          >
+            <div className="flex flex-col">
+              {!isSearching &&
+                messages.map((msg, index) => (
                   <div
-                    className={`py-2 px-3 rounded-lg  ${
-                      msg.user === username ? "bg-green-200" : "bg-red-200"
-                    } ${msg.image ? "max-w-[80%] md:w-[40%]" : " max-w-[80%]"}`}
+                    key={index}
+                    ref={index === messages.length - 1 ? lastMessageRef : null}
+                    className={`flex mb-2 ${
+                      msg.user === username ? "justify-end" : "justify-start"
+                    }`}
                   >
-                    {msg.image ? (
-                      <img
-                        src={msg.image}
-                        alt="Shared"
-                        className="h-auto rounded-lg"
-                      />
-                    ) : (
-                      <p className="text-sm">
-                        <strong>
-                          {msg.user === username ? "You" : msg.user}:
-                        </strong>{" "}
-                        {msg.text}
+                    <div
+                      className={`py-2 px-3 rounded-lg ${
+                        msg.user === username ? "bg-green-200" : "bg-red-200"
+                      } ${
+                        msg.image ? "max-w-[80%] md:w-[40%]" : " max-w-[80%]"
+                      }`}
+                    >
+                      {msg.image ? (
+                        <img
+                          src={msg.image}
+                          alt="Shared"
+                          className="h-auto rounded-lg"
+                        />
+                      ) : (
+                        <p className="text-sm">
+                          <strong>
+                            {msg.user === username ? "You" : msg.user}:
+                          </strong>{" "}
+                          {msg.text}
+                        </p>
+                      )}
+                      <p className="text-xs text-right">
+                        {format(new Date(msg.timestamp), "HH:mm:ss")}
                       </p>
-                    )}
-                    <p className="text-xs text-right">
-                      {format(new Date(msg.timestamp), "HH:mm:ss")}
-                    </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+            </div>
           </div>
 
           {/* Message Input and Send Button */}
           <div className="flex flex-col items-start bg-gray-200 z-10 sticky bottom-0">
-            <div className="w-full px-4 py-1 bg-blue-400">
+            <div className="w-full px-4 mt-1 py-1">
               {matchedUser ? (
                 <button
-                  className="px-2 py-1 rounded-md bg-blue-950 text-white"
+                  className="px-2 py-1 rounded-md bg-yellow-400 text-white"
                   onClick={handleSkip}
                 >
-                  Skip
+                  Skip User
                 </button>
               ) : (
                 <button
-                  className="px-2 py-1 rounded-md bg-blue-950 text-white"
+                  className="px-2 py-1 rounded-md bg-green-400 text-white"
                   onClick={handleFindNewUser}
                   disabled={isSearching}
                 >
-                  Find
+                  Find New User
                 </button>
               )}
             </div>
-            <div className="w-full px-1 py-1 bg-gray-200">
-              <div className="flex items-center w-full relative bg-white rounded-xl">
+            <div className="w-full px-1 py-2 mb-2 ">
+              <div className="flex items-center w-full relative rounded-xl">
                 <button
                   className="rounded-md text-black px-2"
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -303,16 +316,10 @@ const ChatScene = ({ username, ws, onLogout }) => {
                     />
                   </div>
                 )}
-                <input
-                  type="text"
-                  className="rounded-md w-full p-2 focus:outline-none bg-white"
-                  placeholder="Type your message"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={!matchedUser || isSearching}
-                />
-                <label htmlFor="file-input" className="rounded-md text-black px-2 cursor-pointer">
+                <label
+                  htmlFor="file-input"
+                  className="rounded-md text-black px-2 cursor-pointer"
+                >
                   <FaImage />
                 </label>
                 <input
@@ -321,6 +328,15 @@ const ChatScene = ({ username, ws, onLogout }) => {
                   accept="image/*"
                   onChange={handleFileChange}
                   className="hidden"
+                  disabled={!matchedUser || isSearching}
+                />
+                <input
+                  type="text"
+                  className="rounded-xl w-full p-2 focus:outline-none bg-white border"
+                  placeholder="Type your message"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   disabled={!matchedUser || isSearching}
                 />
               </div>
@@ -334,10 +350,10 @@ const ChatScene = ({ username, ws, onLogout }) => {
             showUsersInRoom ? "fixed translate-x-0" : "fixed -translate-x-full"
           } md:block md:relative h-full transition-transform duration-300 ease-in-out z-40 md:z-auto md:w-1/5 md:translate-x-0 bg-gray-300 p-4 overflow-auto`}
         >
-          <h2 className="text-lg font-semibold mb-4">Users in Room</h2>
+          <h2 className="text-lg text-center font-semibold mb-4">Online Users</h2>
           {usersInRoom.map((user, index) => (
-            <div key={index} className="flex items-center mb-2">
-              <FaUserCircle className="text-3xl text-gray-700 mr-2" />
+            <div key={index} className="flex items-center justify-center mb-2 ">
+             
               <p className="text-sm">{user}</p>
             </div>
           ))}
