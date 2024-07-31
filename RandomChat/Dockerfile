@@ -10,9 +10,9 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
-EXPOSE 8000
-
 RUN python manage.py migrate
+
+EXPOSE 8000
 
 ENV DJANGO_SETTINGS_MODULE=RandomChat.settings
 
