@@ -21,7 +21,7 @@ services:
     volumes:
       - ./RandomChat:/code
     env_file:
-      - .env
+      - .env.production
     depends_on:
       - redis
     ports:
