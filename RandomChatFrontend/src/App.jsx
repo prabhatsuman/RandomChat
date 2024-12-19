@@ -12,8 +12,14 @@ const App = () => {
   useEffect(() => {
     // Initialize WebSocket connection
     const initializeWebSocket = () => {
-      const { hostname, port } = window.location;
-      const wsUrl = `ws://127.0.0.1:8000/ws/chat/`; // Adjust the URL path as needed
+      if(import.meta.env.DEV)
+      {
+        var wsUrl = "ws://localhost:8000/ws/chat/";
+      }
+      else
+      {
+        var wsUrl = `ws://${window.location.hostname}:${window.location.port}/ws/chat/`;
+      }
       const ws = new WebSocket(wsUrl);
       setWs(ws);
       try {

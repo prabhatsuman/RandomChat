@@ -2,10 +2,12 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 import redis
 import asyncio
+import os
 from asyncio import Lock
 
 # Redis client setup
-redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
+host=os.getenv('REDIS_HOST')
+redis_client = redis.StrictRedis(host=host, port=6379, db=0)
 
 # Lock for synchronized queue operations
 queue_lock = Lock()
