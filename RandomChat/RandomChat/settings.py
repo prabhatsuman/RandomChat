@@ -76,7 +76,7 @@ ASGI_APPLICATION = "RandomChat.asgi.application"
 
 import os
 
-REDIS_HOST = os.getenv('REDIS_HOST', 'redis')
+REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
 
 CHANNEL_LAYERS = {
     "default": {

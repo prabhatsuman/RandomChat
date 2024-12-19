@@ -1,57 +1,76 @@
 import React, { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
-import { FiChevronDown, FiX, FiSmile, FiMenu } from "react-icons/fi";
-import { FaUserCircle, FaImage } from "react-icons/fa";
-import EmojiPicker from "emoji-picker-react";
+import { FiChevronDown, FiX } from "react-icons/fi";
 
-const ChatScene = ({ username, ws, onLogout }) => {
+const ChatScene = ({ username, interest, ws, onLogout }) => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [dropdownVisible, setDropdownVisible] = useState(false);
-  const [usersInRoom, setUsersInRoom] = useState([username]);
   const [matchedUser, setMatchedUser] = useState(null);
-  const [isSearching, setIsSearching] = useState(false);
   const [notification, setNotification] = useState("");
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showUsersInRoom, setShowUsersInRoom] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-
+  const [isSearching, setIsSearching] = useState(true);
+  const [currentInterest, setCurrentInterest] = useState(interest);
+  const [interestsDropdownVisible, setInterestsDropdownVisible] =
+    useState(false);
 
   const lastMessageRef = useRef(null);
-
+  const interestDropdownRef = useRef(null);
+  // Handle outside click
   useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        interestsDropdownVisible &&
+        interestDropdownRef.current &&
+        !interestDropdownRef.current.contains(e.target)
+      ) {
+        setInterestsDropdownVisible(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [interestsDropdownVisible]);
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (ws) {
+        ws.send(JSON.stringify({ type: "logout" }));
+        ws.close();
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
     if (ws) {
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-
-        if (data.type === "match") {
+        if (data.type === "success") {
+          setNotification(data.message);
+        } else if (data.type === "error") {
+          setNotification(data.message);
+        } else if (data.type === "search") {
+          setNotification(data.message);
+        } else if (data.type === "match") {
           setMatchedUser(data.matched_user);
-          setUsersInRoom([username, data.matched_user]);
           setIsSearching(false);
           setNotification(`Matched with ${data.matched_user}`);
         } else if (data.type === "message") {
           const newMessage = {
             user: data.username,
             text: data.message,
-            image: data.image || null,
             timestamp: new Date(),
           };
           setMessages((prevMessages) => [...prevMessages, newMessage]);
         } else if (data.type === "disconnect") {
           setMatchedUser(null);
-          setUsersInRoom([username]);
-          setIsSearching(false);
           setMessages([]);
-          setNotification("User disconnected, search for a new match...");
-        } else if (data.type === "search") {
-          setIsSearching(true);
-          setNotification("Searching for users...");
+          setNotification(data.message);
         } else if (data.type === "skip") {
           setMatchedUser(null);
-          setUsersInRoom([username]);
-          setIsSearching(false);
           setNotification(data.message);
           setMessages([]);
+        } else if (data.type === "interest_changed") {
+          setNotification(data.message);
         }
       };
 
@@ -61,19 +80,9 @@ const ChatScene = ({ username, ws, onLogout }) => {
     }
 
     return () => {
-      if (ws) {
-        ws.onclose = null;
-        ws.onmessage = null;
-      }
+      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [ws, username]);
-
- 
-  useEffect(() => {
-    if (selectedFile) {
-      handleSendMessage();
-    }
-  }, [selectedFile]);
   useEffect(() => {
     if (lastMessageRef.current) {
       lastMessageRef.current.scrollIntoView({ behavior: "smooth" });
@@ -81,51 +90,13 @@ const ChatScene = ({ username, ws, onLogout }) => {
   }, [messages]);
 
   const handleSendMessage = () => {
-    if ((message.trim() || selectedFile) && ws && matchedUser) {
-      const resizeImage = (file, callback) => {
-        const img = document.createElement("img");
-        const reader = new FileReader();
-
-        reader.onload = (e) => {
-          img.src = e.target.result;
-          img.onload = () => {
-            const canvas = document.createElement("canvas");
-            const ctx = canvas.getContext("2d");
-
-            const width = img.width * 0.2;
-            const height = img.height * 0.2;
-
-            canvas.width = width;
-            canvas.height = height;
-            ctx.drawImage(img, 0, 0, width, height);
-
-            callback(canvas.toDataURL(file.type));
-          };
-        };
-
-        reader.readAsDataURL(file);
+    if (message.trim() && ws && matchedUser) {
+      const data = {
+        type: "message",
+        message,
       };
-
-      if (selectedFile) {
-        console.log("Sending image...");
-        resizeImage(selectedFile, (base64Image) => {
-          const data = {
-            type: "message",
-            message,
-            image: base64Image,
-          };
-          ws.send(JSON.stringify(data));
-          setMessage("");
-          setSelectedFile(null);
-        });
-      } else {
-        const data = {
-          type: "message",
-          message,
-        };
-        ws.send(JSON.stringify(data));
-        setMessage("");
-      }
+      ws.send(JSON.stringify(data));
+      setMessage("");
     }
   };
 
@@ -133,32 +104,42 @@ const ChatScene = ({ username, ws, onLogout }) => {
     if (ws && matchedUser) {
       ws.send(JSON.stringify({ type: "skip", username: matchedUser }));
       setMatchedUser(null);
-      setUsersInRoom([username]);
-      setIsSearching(false);
       setMessages([]);
     }
   };
 
+  const handleFindNewUser = () => {
+    if (ws && !matchedUser) {
+      ws.send(JSON.stringify({ type: "find_new_user" }));
+      setIsSearching(true);
+    }
+  };
+
+  const handleInterestChange = (newInterest) => {
+    if (matchedUser) handleSkip();
+    else {
+      setIsSearching(false);
+    }
+    if (ws) {
+      ws.send(
+        JSON.stringify({ type: "change_interest", new_interest: newInterest })
+      );
+      setCurrentInterest(newInterest);
+      setInterestsDropdownVisible(false);
+    }
+  };
+  const handleLogout = () => {
+    if (ws) {
+      ws.send(JSON.stringify({ type: "logout" }));
+    }
+    onLogout();
+  };
   const toggleDropdown = () => {
     setDropdownVisible(!dropdownVisible);
   };
 
-  const handleFindNewUser = () => {
-    if (ws && !matchedUser) {
-      ws.send(JSON.stringify({ type: "search" }));
-      setIsSearching(true);
-      setNotification("Searching for users...");
-    }
-  };
-
   const handleCloseNotification = () => {
     setNotification("");
-  };
-
-  const handleLocalLogout = () => {
-    console.log("Local logout clicked");
-    ws.close();
-    onLogout(); // Trigger parent component logout handler
   };
 
   const handleKeyDown = (e) => {
@@ -168,28 +149,11 @@ const ChatScene = ({ username, ws, onLogout }) => {
     }
   };
 
-  const toggleUsersInRoom = () => {
-    setShowUsersInRoom(!showUsersInRoom);
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedFile(file);
-    }
-  };
-
   return (
     <div className="flex flex-col h-screen w-screen">
       {/* Navbar */}
       <div className="bg-blue-400 text-white flex justify-between items-center p-3 sticky top-0 z-50 h-12">
         <div className="flex items-center">
-          <button
-            className="text-white focus:outline-none md:hidden mr-4"
-            onClick={toggleUsersInRoom}
-          >
-            <FiMenu className="h-6 w-6" />
-          </button>
           <div className="text-xl font-semibold">Random Chat</div>
         </div>
         <div className="flex items-center">
@@ -207,9 +171,17 @@ const ChatScene = ({ username, ws, onLogout }) => {
                 <div className="py-1">
                   <button
                     className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-200 w-full text-left"
-                    onClick={handleLocalLogout}
+                    onClick={handleLogout}
                   >
                     Logout
+                  </button>
+                  <button
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-200 w-full text-left"
+                    onClick={() =>
+                      setInterestsDropdownVisible(!interestsDropdownVisible)
+                    }
+                  >
+                    Change Interest
                   </button>
                 </div>
               </div>
@@ -218,12 +190,39 @@ const ChatScene = ({ username, ws, onLogout }) => {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Interests Dropdown */}
+      {interestsDropdownVisible && (
+        <div
+          ref={interestDropdownRef}
+          className="absolute z-50 bg-white shadow-lg rounded-lg p-4 top-16 right-4"
+        >
+          <h3 className="font-semibold mb-2">Select Interest:</h3>
+          <div className="grid grid-cols-3 gap-2">
+            {["Any", "Technology", "Sports", "Music", "Movies", "Travel"].map(
+              (interestOption) => (
+                <button
+                  key={interestOption}
+                  className={`px-4 py-2 text-sm rounded-md ${
+                    currentInterest === interestOption
+                      ? "bg-blue-400 text-white"
+                      : "bg-gray-200"
+                  }`}
+                  onClick={() => handleInterestChange(interestOption)}
+                >
+                  {interestOption}
+                </button>
+              )
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Chat */}
       <div className="flex-1 flex relative overflow-hidden">
-        <div className="w-full md:w-4/5 flex flex-col">
-          {/* Notification */}
+        {/* Messages */}
+        <div className="w-full flex flex-col">
           {notification && (
-            <div className="bg-yellow-200 text-yellow-800 p-2 md:w-4/5 w-full text-center fixed top-12">
+            <div className="bg-yellow-200 text-yellow-800 p-2 text-center fixed top-12 w-full">
               {notification}
               <button
                 className="absolute right-2 top-1/2 transform -translate-y-1/2"
@@ -234,11 +233,7 @@ const ChatScene = ({ username, ws, onLogout }) => {
             </div>
           )}
 
-          {/* Chat Window */}
-          <div
-            
-            className="bg-white overflow-y-auto no-scrollbar flex-1 p-1 flex flex-col-reverse"
-          >
+          <div className="flex flex-1 flex-col-reverse overflow-y-auto p-4 no-scrollbar">
             <div className="flex flex-col">
               {!isSearching &&
                 messages.map((msg, index) => (
@@ -250,27 +245,17 @@ const ChatScene = ({ username, ws, onLogout }) => {
                     }`}
                   >
                     <div
-                      className={`py-2 px-3 rounded-lg ${
-                        msg.user === username ? "bg-green-200" : "bg-red-200"
-                      } ${
-                        msg.image ? "max-w-[80%] md:w-[40%]" : " max-w-[80%]"
+                      className={`inline-block rounded-lg px-3 py-2 ${
+                        msg.user === username ? "bg-green-200" : "bg-gray-200"
                       }`}
                     >
-                      {msg.image ? (
-                        <img
-                          src={msg.image}
-                          alt="Shared"
-                          className="h-auto rounded-lg"
-                        />
-                      ) : (
-                        <p className="text-sm">
-                          <strong>
-                            {msg.user === username ? "You" : msg.user}:
-                          </strong>{" "}
-                          {msg.text}
-                        </p>
-                      )}
-                      <p className="text-xs text-right">
+                      <p>
+                        <strong>
+                          {msg.user === username ? "You" : msg.user}:
+                        </strong>{" "}
+                        {msg.text}
+                      </p>
+                      <p className="text-xs text-gray-500">
                         {format(new Date(msg.timestamp), "HH:mm:ss")}
                       </p>
                     </div>
@@ -278,8 +263,8 @@ const ChatScene = ({ username, ws, onLogout }) => {
                 ))}
             </div>
           </div>
+          {/* Input  and find user button*/}
 
-          {/* Message Input and Send Button */}
           <div className="flex flex-col items-start bg-gray-200 z-10 sticky bottom-0">
             <div className="w-full px-4 mt-1 py-1">
               {matchedUser ? (
@@ -299,64 +284,27 @@ const ChatScene = ({ username, ws, onLogout }) => {
                 </button>
               )}
             </div>
-            <div className="w-full px-1 py-2 mb-2 ">
-              <div className="flex items-center w-full relative rounded-xl">
-                <button
-                  className="rounded-md text-black px-2"
-                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                >
-                  <FiSmile />
-                </button>
-                {showEmojiPicker && (
-                  <div className="absolute bottom-12">
-                    <EmojiPicker
-                      onEmojiClick={(emojiObject) =>
-                        setMessage((prevMsg) => prevMsg + emojiObject.emoji)
-                      }
-                    />
-                  </div>
-                )}
-                <label
-                  htmlFor="file-input"
-                  className="rounded-md text-black px-2 cursor-pointer"
-                >
-                  <FaImage />
-                </label>
-                <input
-                  id="file-input"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                  disabled={!matchedUser || isSearching}
-                />
-                <input
-                  type="text"
-                  className="rounded-xl w-full p-2 focus:outline-none bg-white border"
-                  placeholder="Type your message"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={!matchedUser || isSearching}
-                />
+            <div className="flex items-center w-full px-2 py-1 pb-4">
+              <input
+                className="flex-1 px-4 py-2 border rounded-lg w-fullfocus:outline-none focus:ring focus:ring-blue-500"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Type your message..."
+                onKeyDown={handleKeyDown}
+                disabled={!matchedUser || isSearching}
+              />
+            </div>
+           
+          </div>
+           <div className="bg-blue-400 text-white text-center pb-1  w-full flex justify-center gap-10">
+              <div>
+                <strong>Current Match:</strong>{" "}
+                {matchedUser ? matchedUser : "No match yet"}
+              </div>
+              <div>
+                <strong>Selected Interest:</strong> {currentInterest}
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Users in Room (1/4 width) */}
-        <div
-          className={`${
-            showUsersInRoom ? "fixed translate-x-0" : "fixed -translate-x-full"
-          } md:block md:relative h-full transition-transform duration-300 ease-in-out z-40 md:z-auto md:w-1/5 md:translate-x-0 bg-gray-300 p-4 overflow-auto`}
-        >
-          <h2 className="text-lg text-center font-semibold mb-4">Online Users</h2>
-          {usersInRoom.map((user, index) => (
-            <div key={index} className="flex items-center justify-center mb-2 ">
-             
-              <p className="text-sm">{user}</p>
-            </div>
-          ))}
         </div>
       </div>
     </div>
